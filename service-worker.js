@@ -1,51 +1,54 @@
-const CACHE_NAME = 'fastdeal-v1';
+const CACHE_NAME = 'fastdeal-v3';
+const APP_BASE = '/FastDealG/';
+
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json'
-  // Ajoutez ici vos icônes si elles sont statiques
+  APP_BASE,
+  APP_BASE + 'index.html',
+  APP_BASE + 'manifest.json',
+  APP_BASE + 'icon-192.png',
+  APP_BASE + 'icon-512.png'
 ];
 
-// Installation : mise en cache des fichiers statiques
 self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
+    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
   );
+  self.skipWaiting();
 });
 
-// Activation : nettoyer les anciens caches
 self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
+    caches.keys().then(cacheNames =>
+      Promise.all(
         cacheNames.map(cacheName => {
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
         })
-      );
-    })
+      )
+    )
   );
+  self.clients.claim();
 });
 
-// Interception des requêtes : stratégie "stale-while-revalidate"
 self.addEventListener('fetch', event => {
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
-    caches.match(event.request)
-      .then(cachedResponse => {
-        const fetchPromise = fetch(event.request)
-          .then(networkResponse => {
-            if (networkResponse && networkResponse.status === 200) {
-              const responseToCache = networkResponse.clone();
-              caches.open(CACHE_NAME).then(cache => cache.put(event.request, responseToCache));
-            }
-            return networkResponse;
-          })
-          .catch(() => {
-            // En cas d'échec réseau, on retourne la réponse en cache même si elle est périmée
-          });
-        return cachedResponse || fetchPromise;
-      })
+    caches.match(event.request).then(cachedResponse => {
+      const fetchPromise = fetch(event.request)
+        .then(networkResponse => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then(cache => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => cachedResponse);
+
+      return cachedResponse || fetchPromise;
+    })
   );
 });
